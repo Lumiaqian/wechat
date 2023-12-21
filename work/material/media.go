@@ -126,6 +126,7 @@ func (r *Client) UploadAttachment(filename string, mediaType string, attachmentT
 
 	// 发送请求
 	client := &http.Client{}
+	fmt.Printf("req: %v\n", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
