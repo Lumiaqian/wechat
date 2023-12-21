@@ -1,7 +1,12 @@
 package material
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
 
 	"github.com/silenceper/wechat/v2/util"
 )
@@ -89,9 +94,51 @@ func (r *Client) UploadAttachment(filename string, mediaType string, attachmentT
 		return nil, err
 	}
 	var response []byte
-	if response, err = util.PostFile("media", filename, fmt.Sprintf(uploadAttachment, accessToken, mediaType, attachmentType, debug)); err != nil {
+
+	// 创建一个新的表单数据缓冲区
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	// 添加文件
+	f, err := os.Open(filename)
+	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
+	fw, err := w.CreateFormFile("media", filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = io.Copy(fw, f); err != nil {
+		return nil, err
+	}
+
+	// 关闭 writer
+	w.Close()
+
+	// 创建 HTTP 请求
+	req, err := http.NewRequest("POST", fmt.Sprintf(uploadAttachment, accessToken, mediaType, attachmentType, debug), &b)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	response, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	// if response, err = util.PostFile("media", filename, fmt.Sprintf(uploadAttachment, accessToken, mediaType, attachmentType, debug)); err != nil {
+	// 	return nil, err
+	// }
 	result := &UploadAttachmentResponse{}
 	err = util.DecodeWithError(response, result, "UploadAttachment")
 	return result, err
